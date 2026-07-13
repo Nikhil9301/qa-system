@@ -82,3 +82,9 @@ that session), upload a PDF, and ask a question.
   document sets
 - Support non-PDF formats (docx, plain text, web pages)
 - Persist the vector index instead of rebuilding it per session
+
+## Notes
+
+Core RAG pipeline (document loading, chunking, embeddings, retrieval)
+built independently; the Streamlit interface was built with the help of
+AI assistance.
