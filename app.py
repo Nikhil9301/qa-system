@@ -1,18 +1,18 @@
 import os
 import tempfile
- 
+
 import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_classic.chains import RetrievalQA
- 
+
 st.set_page_config(page_title="Document QA", page_icon="📄", layout="centered")
- 
+
 st.title("📄 Retrieval-Based QA System")
 st.caption("Upload one or more PDFs, then ask questions grounded in their content.")
- 
+
 # ---------------------------------------------------------------------------
 # API key — the user supplies their own key at runtime. This is intentional:
 # it keeps secrets out of the code/repo entirely, which matters for a public
@@ -34,29 +34,18 @@ with st.sidebar:
         "generation. Source: sentence chunks are embedded, indexed, and the "
         "most relevant chunks are passed to the LLM to answer your question."
     )
- 
+
 if not api_key:
     st.info("Enter your OpenAI API key in the sidebar to get started.")
- 
-    with st.expander("📌 See a sample result (no API key needed)", expanded=True):
-        st.caption("Example from an earlier run against a company policy document — shown here as a preview, not generated live.")
-        st.markdown("**Q: Who is eligible for personal and paid leaves at Simpplr?**")
-        st.write(
-            "All full-time and part-time employees who have completed at least "
-            "six months of continuous employment with Simpplr are eligible for "
-            "personal and paid leaves."
-        )
-        st.markdown("**Source:** Personal and Paid Leave Policy.pdf (page 1)")
- 
     st.stop()
- 
+
 os.environ["OPENAI_API_KEY"] = api_key
- 
- 
+
+
 @st.cache_resource(show_spinner="Indexing documents...")
 def build_vector_db(file_bytes_list, file_names, _api_key):
     """Load PDFs, split into chunks, embed, and build a FAISS index.
- 
+
     _api_key is prefixed with an underscore so Streamlit's cache_resource
     doesn't try to hash it (and so cache correctly busts if the key changes,
     since it's still part of the function's identity via closure below).
@@ -74,43 +63,43 @@ def build_vector_db(file_bytes_list, file_names, _api_key):
             all_docs.extend(docs)
         finally:
             os.unlink(tmp_path)
- 
+
     splitter = CharacterTextSplitter(
         separator="\n", chunk_size=1000, chunk_overlap=200, length_function=len
     )
     texts = splitter.split_documents(all_docs)
- 
+
     embeddings = OpenAIEmbeddings()
     return FAISS.from_documents(texts, embeddings)
- 
- 
+
+
 if not uploaded_files:
     st.info("Upload one or more PDF files in the sidebar to build the knowledge base.")
     st.stop()
- 
+
 file_bytes_list = [f.getvalue() for f in uploaded_files]
 file_names = [f.name for f in uploaded_files]
- 
+
 vector_db = build_vector_db(file_bytes_list, file_names, api_key)
- 
+
 qa_chain = RetrievalQA.from_chain_type(
     llm=ChatOpenAI(model="gpt-4o-mini", temperature=0),
     chain_type="stuff",
     retriever=vector_db.as_retriever(search_kwargs={"k": 4}),
     return_source_documents=True,
 )
- 
+
 st.success(f"Indexed {len(uploaded_files)} document(s). Ask a question below.")
- 
+
 query = st.text_input("Ask a question about your documents", placeholder="e.g. What is the leave policy?")
- 
+
 if query:
     with st.spinner("Thinking..."):
         result = qa_chain.invoke({"query": query})
- 
+
     st.markdown("### Answer")
     st.write(result["result"])
- 
+
     with st.expander("Sources used for this answer"):
         for i, doc in enumerate(result["source_documents"], 1):
             page = doc.metadata.get("page", "?")
